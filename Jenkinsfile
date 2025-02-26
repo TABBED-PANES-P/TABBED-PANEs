@@ -31,12 +31,13 @@ pipeline {
 
         stage('SonarQube Analysis') {
             steps {
-                sh """
-                mvn sonar:sonar \
-                -Dsonar.projectKey=sample_project \
-                -Dsonar.host.url=$SONAR_HOST_URL \
-                -Dsonar.login=$SONAR_AUTH_TOKEN
-                """
+                sh '''
+    mvn sonar:sonar \
+    -Dsonar.projectKey=sample_project \
+    -Dsonar.host.url=http://localhost:9000 \
+    -Dsonar.login=$SONAR_AUTH_TOKEN
+'''
+
             }
         }
     }
