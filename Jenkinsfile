@@ -11,7 +11,7 @@ pipeline {
 
     stages {
 
-        tage('Checkout Code') {
+        stage('Checkout Code') {
             steps {
                 git branch: 'master', url: 'https://github.com/TABBED-PANES-P/TABBED-PANEs.git'
             }
