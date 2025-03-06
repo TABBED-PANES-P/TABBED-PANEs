@@ -48,16 +48,5 @@ pipeline {
                 """
             }
         }
-
-        stage('Debug') {
-            steps {
-                echo "Running post-build diagnostics..."
-                script {
-                    // Print the version of Maven and SonarQube Scanner
-                    sh 'mvn -v'
-                    sh 'sonar-scanner -v'  // Run this if SonarQube Scanner is installed and available
-                }
-            }
-        }
     }
 }
