@@ -1,22 +1,32 @@
-# variables.tf
 variable "region" {
-  description = "The AWS region to deploy resources"
+  description = "The AWS region to deploy resources in"
   type        = string
+  default     = "us-east-1"
 }
 
 variable "instance_type" {
-  description = "The type of instance to create"
+  description = "The type of EC2 instance"
   type        = string
-  default     = "t2.micro"
 }
 
 variable "db_username" {
-  description = "The username for the database"
+  description = "Database administrator username"
   type        = string
+  sensitive   = true
 }
 
 variable "db_password" {
-  description = "The password for the database"
+  description = "Database administrator password"
   type        = string
   sensitive   = true
+}
+
+variable "s3_bucket_name" {
+  description = "The name of the S3 bucket"
+  type        = string
+}
+
+variable "aws_ami_id" {
+  description = "The AMI ID to use for the EC2 instance"
+  type        = string
 }
