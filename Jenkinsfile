@@ -8,11 +8,12 @@ pipeline {
 
     environment {
         SONAR_HOST_URL = 'http://localhost:9000'
-        SONAR_AUTH_TOKEN = credentials('last')
-        // Add default values for Terraform variables
-        TF_VAR_region = "us-west-2"
-        TF_VAR_instance_type = "t2.micro"
-        TF_VAR_db_username = "admin"
+        SONAR_AUTH_TOKEN = credentials('last')  // SonarQube token as Jenkins credential
+        AWS_ACCESS_KEY_ID = credentials('aws-access-key-id')  // Jenkins Credentials for AWS Access Key
+        AWS_SECRET_ACCESS_KEY = credentials('aws-secret-access-key')  // Jenkins Credentials for AWS Secret Key
+        DB_PASSWORD = credentials('db_password_cred')  // Jenkins Credentials for Database Password
+        S3_BUCKET_NAME = 'your-s3-bucket-name'  // Set your S3 bucket name or make it dynamic
+        AWS_AMI_ID = 'ami-12345678'  // Update with the correct AMI ID
     }
 
     stages {
@@ -54,34 +55,11 @@ pipeline {
             }
         }
 
-        stage('Prepare Terraform') {
-            steps {
-                script {
-                    // Create terraform.tfvars if it doesn't exist
-                    if (!fileExists('terraform.tfvars')) {
-                        writeFile file: 'terraform.tfvars', text: """
-                        region        = "${env.TF_VAR_region}"
-                        instance_type = "${env.TF_VAR_instance_type}"
-                        db_username   = "${env.TF_VAR_db_username}"
-                        """
-                    }
-                    
-                    // For sensitive values, use withCredentials
-                    withCredentials([string(credentialsId: 'db_password', variable: 'DB_PASSWORD')]) {
-                        sh '''
-                        echo "db_password = \"${DB_PASSWORD}\"" >> terraform.tfvars
-                        '''
-                    }
-                }
-            }
-        }
-
         stage('Terraform Init') {
             steps {
-                withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'idnum01']]) {
+                script {
+                    // AWS Credentials are automatically available as environment variables
                     sh '''
-                        export AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID
-                        export AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY
                         terraform init
                     '''
                 }
@@ -90,27 +68,53 @@ pipeline {
 
         stage('Terraform Plan') {
             steps {
-                withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'idnum01']]) {
-                    sh '''
-                        export AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID
-                        export AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY
-                        terraform plan -out=tfplan -var-file=terraform.tfvars
-                    '''
+                script {
+                    // Run Terraform Plan with the provided terraform.tfvars file
+                    sh """
+                        terraform plan -out=tfplan \
+                        -var="db_password=${DB_PASSWORD}" \
+                        -var="s3_bucket_name=${S3_BUCKET_NAME}" \
+                        -var="aws_ami_id=${AWS_AMI_ID}"
+                    """
                 }
             }
         }
 
         stage('Terraform Apply') {
             steps {
-                withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'idnum01']]) {
-                    input message: 'Do you approve applying Terraform changes?', ok: 'Yes'
-                    sh '''
-                        export AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID
-                        export AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY
-                        terraform apply -auto-approve tfplan
-                    '''
+                input message: 'Do you approve applying Terraform changes?', ok: 'Yes'
+                script {
+                    // Apply the plan if the input is approved
+                    sh """
+                        terraform apply -auto-approve tfplan \
+                        -var="db_password=${DB_PASSWORD}" \
+                        -var="s3_bucket_name=${S3_BUCKET_NAME}" \
+                        -var="aws_ami_id=${AWS_AMI_ID}"
+                    """
                 }
             }
+        }
+
+        stage('Provision RDS') {
+            steps {
+                input message: 'Do you approve applying RDS changes?', ok: 'Yes'
+                script {
+                    // Apply specific Terraform plan for RDS provisioning
+                    sh """
+                        terraform apply -auto-approve rdsplan \
+                        -var="db_password=${DB_PASSWORD}" \
+                        -var="s3_bucket_name=${S3_BUCKET_NAME}" \
+                        -var="aws_ami_id=${AWS_AMI_ID}"
+                    """
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            // Clean workspace to remove any temporary files
+            cleanWs()
         }
     }
 }
