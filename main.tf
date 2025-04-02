@@ -1,18 +1,18 @@
+# AWS Provider Configuration
 provider "aws" {
-  region = "us-east-1"  # Adjust this to the region you want to use
+  region = var.aws_region
 }
 
 # Create an S3 Bucket
 resource "aws_s3_bucket" "example" {
-  bucket = "my-terraform-bucket-abc123-xyz789"  # Ensure this name is unique
-
+  bucket = var.s3_bucket_name
   tags = {
     Name        = "MyBucket"
     Environment = "Dev"
   }
 }
 
-# Create a Security Group for RDS
+# Security Group for RDS
 resource "aws_security_group" "rds_sg" {
   name_prefix = "rds-sg"
   
@@ -20,7 +20,7 @@ resource "aws_security_group" "rds_sg" {
     from_port   = 3306
     to_port     = 3306
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]  # For wide access, but not recommended for production
+    cidr_blocks = var.allowed_ip_ranges
   }
   
   egress {
@@ -35,20 +35,20 @@ resource "aws_security_group" "rds_sg" {
   }
 }
 
-# Create an RDS instance and associate the security group
+# Create an RDS instance
 resource "aws_db_instance" "example" {
-  identifier          = "my-db-instance"
+  identifier          = var.db_instance_name
   engine              = "mysql"
   instance_class      = "db.t3.micro"
-  allocated_storage   = 20  # Fixed the duplicate issue
+  allocated_storage   = 20
   storage_type        = "gp2"
-  username            = "admin"
-  password            = "admin1234"  # Change this to a more secure password
-  db_name             = "mydb"
-  publicly_accessible = true
-  
-  vpc_security_group_ids = [aws_security_group.rds_sg.id]  # Associating security group
-  
+  username            = var.db_username
+  password            = var.db_password
+  db_name             = var.db_name
+  publicly_accessible = false
+
+  vpc_security_group_ids = [aws_security_group.rds_sg.id]
+
   backup_retention_period = 7
   multi_az               = false
   skip_final_snapshot    = true
@@ -60,3 +60,4 @@ resource "aws_db_instance" "example" {
 
   auto_minor_version_upgrade = true
 }
+
