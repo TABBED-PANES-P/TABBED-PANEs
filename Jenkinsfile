@@ -1,5 +1,5 @@
 pipeline {
-    agent { label 'label' }
+    agent {label 'Clean_Code' }
 
     tools {
         maven 'maven3'
