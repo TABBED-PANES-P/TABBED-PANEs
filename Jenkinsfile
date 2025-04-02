@@ -1,5 +1,5 @@
 pipeline {
-    agent { label 'agent-3' }
+    agent { label 'label' }
 
     tools {
         maven 'maven3'
@@ -14,7 +14,7 @@ pipeline {
     stages {
         stage('Checkout Code') {
             steps {
-                git branch: 'master', url: 'https://github.com/IMPLEMENTING-A-CRISP-NAVIGATION/IMPLEMENTING-A-CRISP-NAVIGATION.git'
+                git branch: 'master', url: 'https://github.com/TABBED-PANES-P/TABBED-PANEs.git'
             }
         }
 
@@ -41,7 +41,7 @@ pipeline {
                 withSonarQubeEnv('SonarQube') {
                     sh """
                     mvn sonar:sonar \
-                    -Dsonar.projectKey=sample_project22 \
+                    -Dsonar.projectKey=sample_project222 \
                     -Dsonar.host.url=$SONAR_HOST_URL \
                     -Dsonar.login=$SONAR_AUTH_TOKEN \
                     -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml
