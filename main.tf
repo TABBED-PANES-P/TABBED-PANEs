@@ -40,7 +40,7 @@ resource "aws_db_instance" "example" {
   identifier          = "my-db-instance"
   engine              = "mysql"
   instance_class      = "db.t3.micro"
-  allocated_storage   = 20
+  allocated_storage   = 20  # Fixed the duplicate issue
   storage_type        = "gp2"
   username            = "admin"
   password            = "admin1234"  # Change this to a more secure password
@@ -51,7 +51,6 @@ resource "aws_db_instance" "example" {
   
   backup_retention_period = 7
   multi_az               = false
-  allocated_storage      = 20
   skip_final_snapshot    = true
 
   tags = {
