@@ -68,7 +68,7 @@ pipeline {
                     sh '''
                         export AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID
                         export AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY
-                        terraform plan -out=tfplan
+                        terraform plan -out=tfplan -var-file=terraform.tfvars
                     '''
                 }
             }
@@ -77,6 +77,7 @@ pipeline {
         stage('Terraform Apply') {
             steps {
                 withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'idnum01']]) {
+                    input message: 'Do you approve applying Terraform changes?', ok: 'Yes'
                     sh '''
                         export AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID
                         export AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY
@@ -86,12 +87,10 @@ pipeline {
             }
         }
 
-        // Additional stage for RDS provisioning if needed
         stage('Provision RDS') {
             steps {
                 withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'idnum01']]) {
                     sh '''
-                    
                         export AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID
                         export AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY
                         terraform apply -auto-approve rdsplan
