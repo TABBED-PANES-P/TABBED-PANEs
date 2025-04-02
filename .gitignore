@@ -1,3 +1,7 @@
+# Ignore terraform.tfvars file to keep sensitive data out of the repo
+terraform.tfvars
+
+# Target directories from Maven and build tools
 target/
 !.mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/
