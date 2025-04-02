@@ -10,9 +10,9 @@ provider "aws" {
   region = var.aws_region  # Referencing the aws_region variable
 }
 
-# Create an S3 Bucket
+# Create a unique S3 Bucket
 resource "aws_s3_bucket" "example" {
-  bucket = "my-terraform-bucket-abc123-xyz789"  # Ensure this name is unique
+  bucket = "my-terraform-bucket-${timestamp()}"  # Ensure this name is unique using timestamp
 
   tags = {
     Name        = "MyBucket"
