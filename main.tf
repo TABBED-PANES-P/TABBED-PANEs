@@ -1,18 +1,26 @@
-# AWS Provider Configuration
+# Declare the aws_region variable
+variable "aws_region" {
+  description = "The AWS region to deploy resources in"
+  type        = string
+  default     = "us-east-1"  # You can change this to any region you prefer
+}
+
+# Configure the AWS provider
 provider "aws" {
-  region = var.aws_region
+  region = var.aws_region  # Referencing the aws_region variable
 }
 
 # Create an S3 Bucket
 resource "aws_s3_bucket" "example" {
-  bucket = var.s3_bucket_name
+  bucket = "my-terraform-bucket-abc123-xyz789"  # Ensure this name is unique
+
   tags = {
     Name        = "MyBucket"
     Environment = "Dev"
   }
 }
 
-# Security Group for RDS
+# Create a Security Group for RDS
 resource "aws_security_group" "rds_sg" {
   name_prefix = "rds-sg"
   
@@ -20,7 +28,7 @@ resource "aws_security_group" "rds_sg" {
     from_port   = 3306
     to_port     = 3306
     protocol    = "tcp"
-    cidr_blocks = var.allowed_ip_ranges
+    cidr_blocks = ["0.0.0.0/0"]  # For wide access, but not recommended for production
   }
   
   egress {
@@ -35,20 +43,20 @@ resource "aws_security_group" "rds_sg" {
   }
 }
 
-# Create an RDS instance
+# Create an RDS instance and associate the security group
 resource "aws_db_instance" "example" {
-  identifier          = var.db_instance_name
+  identifier          = "my-db-instance"
   engine              = "mysql"
   instance_class      = "db.t3.micro"
-  allocated_storage   = 20
+  allocated_storage   = 20  # Fixed the duplicate issue
   storage_type        = "gp2"
-  username            = var.db_username
-  password            = var.db_password
-  db_name             = var.db_name
-  publicly_accessible = false
-
-  vpc_security_group_ids = [aws_security_group.rds_sg.id]
-
+  username            = "admin"
+  password            = "admin1234"  # Change this to a more secure password
+  db_name             = "mydb"
+  publicly_accessible = true
+  
+  vpc_security_group_ids = [aws_security_group.rds_sg.id]  # Associating security group
+  
   backup_retention_period = 7
   multi_az               = false
   skip_final_snapshot    = true
@@ -60,4 +68,3 @@ resource "aws_db_instance" "example" {
 
   auto_minor_version_upgrade = true
 }
-
