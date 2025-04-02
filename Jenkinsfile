@@ -8,7 +8,7 @@ pipeline {
 
     environment {
         SONAR_HOST_URL = 'http://localhost:9000'
-        SONAR_AUTH_TOKEN = credentials('last')
+        SONAR_AUTH_TOKEN = credentials('last')  // SonarQube token as Jenkins credential
     }
 
     stages {
@@ -53,11 +53,12 @@ pipeline {
         stage('Terraform Init') {
             steps {
                 withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'idnum01']]) {
-                    sh '''
-                        export AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID
-                        export AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY
-                        terraform init
-                    '''
+                    script {
+                        // AWS Credentials will be available automatically as environment variables
+                        sh '''
+                            terraform init
+                        '''
+                    }
                 }
             }
         }
@@ -65,11 +66,12 @@ pipeline {
         stage('Terraform Plan') {
             steps {
                 withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'idnum01']]) {
-                    sh '''
-                        export AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID
-                        export AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY
-                        terraform plan -out=tfplan -var-file=terraform.tfvars
-                    '''
+                    script {
+                        // Run Terraform Plan with the provided terraform.tfvars file
+                        sh '''
+                            terraform plan -out=tfplan -var-file=terraform.tfvars
+                        '''
+                    }
                 }
             }
         }
@@ -78,11 +80,12 @@ pipeline {
             steps {
                 withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'idnum01']]) {
                     input message: 'Do you approve applying Terraform changes?', ok: 'Yes'
-                    sh '''
-                        export AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID
-                        export AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY
-                        terraform apply -auto-approve tfplan
-                    '''
+                    script {
+                        // Apply the plan if the input is approved
+                        sh '''
+                            terraform apply -auto-approve tfplan
+                        '''
+                    }
                 }
             }
         }
@@ -90,13 +93,22 @@ pipeline {
         stage('Provision RDS') {
             steps {
                 withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'idnum01']]) {
-                    sh '''
-                        export AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID
-                        export AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY
-                        terraform apply -auto-approve rdsplan
-                    '''
+                    input message: 'Do you approve applying RDS changes?', ok: 'Yes'
+                    script {
+                        // Apply specific Terraform plan for RDS provisioning
+                        sh '''
+                            terraform apply -auto-approve rdsplan
+                        '''
+                    }
                 }
             }
+        }
+    }
+
+    post {
+        always {
+            // Clean workspace to remove any temporary files
+            cleanWs()
         }
     }
 }
