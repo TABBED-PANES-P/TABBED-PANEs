@@ -1,22 +1,22 @@
 # variables.tf
-
-variable "aws_region" {
-  description = "The AWS region to deploy resources in"
-  type        = string
-  default     = "us-east-1"  # You can change the default or override in terraform.tfvars
-}
-
-variable "s3_bucket_name" {
-  description = "The name of the S3 bucket"
+variable "region" {
+  description = "The AWS region to deploy resources"
   type        = string
 }
 
-variable "aws_ami_id" {
-  description = "The AMI ID to use for the EC2 instance"
+variable "instance_type" {
+  description = "The type of instance to create"
+  type        = string
+  default     = "t2.micro"
+}
+
+variable "db_username" {
+  description = "The username for the database"
   type        = string
 }
 
-variable "aws_instance_type" {
-  description = "The type of EC2 instance"
+variable "db_password" {
+  description = "The password for the database"
   type        = string
+  sensitive   = true
 }
