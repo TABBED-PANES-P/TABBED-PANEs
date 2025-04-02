@@ -1,5 +1,5 @@
 pipeline {
-    agent {label 'Clean_Code' }
+    agent { label 'Clean_Code' }
 
     tools {
         maven 'maven3'
@@ -81,6 +81,20 @@ pipeline {
                         export AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID
                         export AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY
                         terraform apply -auto-approve tfplan
+                    '''
+                }
+            }
+        }
+
+        // Additional stage for RDS provisioning if needed
+        stage('Provision RDS') {
+            steps {
+                withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'idnum01']]) {
+                    sh '''
+                    
+                        export AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID
+                        export AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY
+                        terraform apply -auto-approve rdsplan
                     '''
                 }
             }
