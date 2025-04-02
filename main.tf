@@ -1,28 +1,29 @@
-# main.tf
 provider "aws" {
   region = var.region
 }
 
+resource "aws_s3_bucket" "example" {
+  bucket = var.s3_bucket_name
+  acl    = "private"
+}
+
 resource "aws_instance" "example" {
-  ami           = "ami-0c55b159cbfafe1f0"  # Use the appropriate AMI for your region
+  ami           = var.aws_ami_id
   instance_type = var.instance_type
 
   tags = {
-    Name = "ExampleInstance"
+    Name = "example-instance"
   }
 }
 
-resource "aws_db_instance" "example" {
-  identifier        = "example-db"
-  engine            = "mysql"
-  instance_class    = "db.t2.micro"
-  allocated_storage = 20
-  username          = var.db_username
-  password          = var.db_password
-  db_name           = "exampledb"
+# Add RDS configuration if needed
+resource "aws_db_instance" "default" {
+  allocated_storage    = 10
+  engine              = "mysql"
+  engine_version      = "5.7"
+  instance_class      = "db.t2.micro"
+  name                = "mydb"
+  username            = var.db_username
+  password            = var.db_password
   skip_final_snapshot = true
-
-  tags = {
-    Name = "ExampleDatabase"
-  }
 }
