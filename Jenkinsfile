@@ -9,9 +9,9 @@ pipeline {
     environment {
         SONAR_HOST_URL = 'http://localhost:9000'
         SONAR_AUTH_TOKEN = credentials('last')  // SonarQube token as Jenkins credential
-        AWS_ACCESS_KEY_ID = credentials('aws-access-key-id')  // Jenkins Credentials for AWS Access Key
-        AWS_SECRET_ACCESS_KEY = credentials('aws-secret-access-key')  // Jenkins Credentials for AWS Secret Key
-        DB_PASSWORD = credentials('db_password_cred')  // Jenkins Credentials for Database Password
+        AWS_ACCESS_KEY_ID = credentials('idnum01')  // Jenkins Credentials for AWS Access Key
+        AWS_SECRET_ACCESS_KEY = credentials('idnum01')  // Jenkins Credentials for AWS Secret Key
+        DB_PASSWORD = credentials('db_password')  // Jenkins Credentials for Database Password
         S3_BUCKET_NAME = 'your-s3-bucket-name'  // Set your S3 bucket name or make it dynamic
         AWS_AMI_ID = 'ami-12345678'  // Update with the correct AMI ID
     }
