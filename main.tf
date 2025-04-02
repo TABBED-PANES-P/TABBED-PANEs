@@ -12,7 +12,7 @@ provider "aws" {
 
 # Create a unique S3 Bucket with a sanitized name
 resource "aws_s3_bucket" "example" {
-  bucket = "my-terraform-bucket-${replace(timestamp(), "[:]", "")}"  # Remove ":" from the timestamp
+  bucket = "my-terraform-bucket-2025-04-02T160044Z"  # Updated bucket name with valid characters
 
   tags = {
     Name        = "MyBucket"
