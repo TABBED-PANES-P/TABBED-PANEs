@@ -1,40 +1,41 @@
 # Configure AWS Provider
 provider "aws" {
-  region = var.aws_region
+  region = "us-east-1"  # Change to your region
 }
 
-# Get VPC and Subnets
-data "aws_vpc" "selected" {
-  id = var.vpc_id
+# Get the default VPC (or specify a custom VPC)
+data "aws_vpc" "default" {
+  default = true  # Set to `false` if using a custom VPC
 }
 
+# Fetch all available subnets in the VPC
 data "aws_subnets" "available" {
   filter {
     name   = "vpc-id"
-    values = [data.aws_vpc.selected.id]
+    values = [data.aws_vpc.default.id]
   }
 }
 
-# MySQL RDS Subnet Group
-resource "aws_db_subnet_group" "mysql" {
-  name       = "mysql-subnet-group-${var.environment}"
-  subnet_ids = data.aws_subnets.available.ids
+# Create an RDS subnet group (must have at least 2 subnets in different AZs)
+resource "aws_db_subnet_group" "default" {
+  name       = "mysql-db-subnet-group"
+  subnet_ids = slice(data.aws_subnets.available.ids, 0, 2)  # Takes first 2 subnets
   tags = {
-    Environment = var.environment
+    Name = "MySQL DB Subnet Group"
   }
 }
 
-# Security Group
-resource "aws_security_group" "mysql" {
-  name        = "mysql-sg-${var.environment}"
-  description = "Allow MySQL access"
-  vpc_id      = data.aws_vpc.selected.id
+# Security Group for MySQL
+resource "aws_security_group" "mysql_sg" {
+  name        = "mysql-security-group"
+  description = "Allow inbound MySQL traffic"
+  vpc_id      = data.aws_vpc.default.id
 
   ingress {
-    from_port   = 3306
+    from_port   = 3306  # MySQL default port
     to_port     = 3306
     protocol    = "tcp"
-    cidr_blocks = [var.allowed_cidr]
+    cidr_blocks = ["0.0.0.0/0"]  # Restrict this in production!
   }
 
   egress {
@@ -47,22 +48,15 @@ resource "aws_security_group" "mysql" {
 
 # MySQL RDS Instance
 resource "aws_db_instance" "mysql" {
-  identifier             = "mysql-${var.environment}"
+  identifier             = "mysql-db-instance"
   engine                 = "mysql"
-  engine_version         = var.mysql_version
-  instance_class         = var.instance_class
-  allocated_storage      = var.allocated_storage
-  db_name                = var.db_name
-  username               = var.db_username
-  password               = var.db_password
-  db_subnet_group_name   = aws_db_subnet_group.mysql.name
-  vpc_security_group_ids = [aws_security_group.mysql.id]
-  skip_final_snapshot    = var.skip_final_snapshot
-  parameter_group_name   = "default.mysql${replace(var.mysql_version, "/\\..*/", "")}"
-  publicly_accessible    = var.publicly_accessible
-  storage_type           = "gp2"
-  backup_retention_period = 7
-  tags = {
-    Environment = var.environment
-  }
+  engine_version         = "8.0.33"  # Latest stable MySQL 8.0 (check your region)
+  instance_class         = "db.t3.micro"
+  allocated_storage      = 20
+  db_name                = "mydatabase"
+  username               = "admin"
+  password               = "changeme123"  # Use AWS Secrets Manager in production!
+  db_subnet_group_name   = aws_db_subnet_group.default.name
+  vpc_security_group_ids = [aws_security_group.mysql_sg.id]
+  skip_final_snapshot    = true  # Set to `false` in production!
 }
