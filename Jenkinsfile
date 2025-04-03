@@ -15,6 +15,7 @@ pipeline {
         S3_BUCKET_NAME = 'your-s3-bucket-name'
         AWS_AMI_ID = 'ami-12345678'
         INSTANCE_TYPE = 'db.t3.micro' // Changed to RDS-compatible type
+         UNIQUE_SUFFIX = "${BUILD_ID}"
     }
 
     stages {
