@@ -16,24 +16,24 @@ data "aws_subnets" "available" {
   }
 }
 
-# Create an RDS subnet group using the first 2 subnets (must be in different AZs)
+# Create an RDS subnet group (must have at least 2 subnets in different AZs)
 resource "aws_db_subnet_group" "default" {
-  name       = "my-db-subnet-group"
+  name       = "mysql-db-subnet-group"
   subnet_ids = slice(data.aws_subnets.available.ids, 0, 2)  # Takes first 2 subnets
   tags = {
-    Name = "Dynamic DB Subnet Group"
+    Name = "MySQL DB Subnet Group"
   }
 }
 
-# Example: RDS Security Group (optional but recommended)
-resource "aws_security_group" "rds_sg" {
-  name        = "rds-security-group"
-  description = "Allow inbound PostgreSQL/Aurora traffic"
+# Security Group for MySQL
+resource "aws_security_group" "mysql_sg" {
+  name        = "mysql-security-group"
+  description = "Allow inbound MySQL traffic"
   vpc_id      = data.aws_vpc.default.id
 
   ingress {
-    from_port   = 5432
-    to_port     = 5432
+    from_port   = 3306  # MySQL default port
+    to_port     = 3306
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]  # Restrict this in production!
   }
@@ -46,16 +46,17 @@ resource "aws_security_group" "rds_sg" {
   }
 }
 
-# Example: Create a PostgreSQL RDS instance (optional)
-resource "aws_db_instance" "example" {
-  identifier             = "my-postgres-db"
-  engine                 = "postgres"
-  engine_version         = "14.4"
+# MySQL RDS Instance
+resource "aws_db_instance" "mysql" {
+  identifier             = "mysql-db-instance"
+  engine                 = "mysql"
+  engine_version         = "8.0.33"  # Latest stable MySQL 8.0 (check your region)
   instance_class         = "db.t3.micro"
   allocated_storage      = 20
   db_name                = "mydatabase"
   username               = "admin"
   password               = "changeme123"  # Use AWS Secrets Manager in production!
- 
+  db_subnet_group_name   = aws_db_subnet_group.default.name
+  vpc_security_group_ids = [aws_security_group.mysql_sg.id]
   skip_final_snapshot    = true  # Set to `false` in production!
 }
