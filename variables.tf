@@ -34,14 +34,21 @@ variable "db_username" {
 }
 
 variable "db_password" {
-  description = "Database password (8-41 chars, printable ASCII except /, @, \", or space)"
   type        = string
+  description = "The password for the database."
   sensitive   = true
+
   validation {
-    condition     = can(regex("^[^/@\" ]{8,41}$", var.db_password))
-    error_message = "Password must be 8-41 printable ASCII characters excluding /, @, \", or space"
+    condition = length(var.db_password) >= 8 && length(var.db_password) <= 41 &&
+                !contains(var.db_password, "/") &&
+                !contains(var.db_password, "@") &&
+                !contains(var.db_password, "\"") &&
+                !contains(var.db_password, " ")
+
+    error_message = "Password must be between 8 and 41 characters and contain only printable ASCII characters excluding /, @, \" or spaces."
   }
 }
+
 
 variable "allowed_cidr" {
   description = "Allowed CIDR block for MySQL access"
