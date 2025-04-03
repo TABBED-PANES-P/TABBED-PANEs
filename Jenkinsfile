@@ -1,4 +1,3 @@
-
 pipeline {
     agent { label 'Clean_Code' }
 
@@ -9,7 +8,12 @@ pipeline {
 
     environment {
         SONAR_HOST_URL = 'http://localhost:9000'
-        SONAR_AUTH_TOKEN = credentials('last')
+        SONAR_AUTH_TOKEN = credentials('last')  // SonarQube token as Jenkins credential
+        AWS_ACCESS_KEY_ID = credentials('idnum01')  // Jenkins Credentials for AWS Access Key
+        AWS_SECRET_ACCESS_KEY = credentials('idnum01')  // Jenkins Credentials for AWS Secret Key
+        DB_PASSWORD = credentials('db_password')  // Jenkins Credentials for Database Password
+        S3_BUCKET_NAME = 'your-s3-bucket-name'  // Set your S3 bucket name or make it dynamic
+        AWS_AMI_ID = 'ami-12345678'  // Update with the correct AMI ID
     }
 
     stages {
@@ -31,75 +35,88 @@ pipeline {
             }
         }
 
-        stage('Code Coverage') {
-            steps {
-                sh 'mvn verify'
-            }
-        }
-
-        stage('SonarQube Analysis') {
-            steps {
-                withSonarQubeEnv('SonarQube') {
-                    sh """
-                    mvn sonar:sonar \
-                    -Dsonar.projectKey=sample_project222 \
-                    -Dsonar.host.url=$SONAR_HOST_URL \
-                    -Dsonar.login=$SONAR_AUTH_TOKEN \
-                    -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml
-                    """
-                }
-            }
-        }
-
         stage('Terraform Init') {
             steps {
-                withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'idnum01']]) {
-                    sh '''
-                        export AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID
-                        export AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY
-                        terraform init
-                    '''
+                script {
+                    try {
+                        sh '''
+                            terraform init
+                        '''
+                    } catch (Exception e) {
+                        echo "Terraform Init failed: ${e.message}"
+                        currentBuild.result = 'FAILURE'
+                        throw e  // Re-throw the exception after logging it
+                    }
                 }
             }
         }
 
-       // In your Jenkinsfile, pass sensitive data securely:
-stage('Terraform Plan') {
-    steps {
-        script {
-            writeFile file: 'terraform.tfvars', text: """
-            aws_region = "${AWS_REGION}"
-            environment = "${ENVIRONMENT}"
-            db_password = "${DB_PASSWORD}"  # From Jenkins credentials
-            """
-            sh 'terraform plan -out=tfplan -var-file=terraform.tfvars'
+        stage('Terraform Plan') {
+            steps {
+                script {
+                    try {
+                        sh """
+                            terraform plan -out=tfplan \
+                            -var="db_password=${DB_PASSWORD}" \
+                            -var="s3_bucket_name=${S3_BUCKET_NAME}" \
+                            -var="aws_ami_id=${AWS_AMI_ID}"
+                        """
+                    } catch (Exception e) {
+                        echo "Terraform Plan failed: ${e.message}"
+                        currentBuild.result = 'FAILURE'
+                        throw e  // Re-throw the exception after logging it
+                    }
+                }
+            }
         }
-    }
-}
 
         stage('Terraform Apply') {
             steps {
-                withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'idnum01']]) {
-                    input message: 'Do you approve applying Terraform changes?', ok: 'Yes'
-                    sh '''
-                        export AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID
-                        export AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY
-                        terraform apply -auto-approve tfplan
-                    '''
+                input message: 'Do you approve applying Terraform changes?', ok: 'Yes'
+                script {
+                    try {
+                        sh '''
+                            terraform apply -auto-approve tfplan \
+                            -var="db_password=${DB_PASSWORD}" \
+                            -var="instance_type=${INSTANCE_TYPE}" \
+                            -var="db_username=${DB_USERNAME}" \
+                            -var="s3_bucket_name=${S3_BUCKET_NAME}" \
+                            -var="aws_ami_id=${AWS_AMI_ID}"
+                        '''
+                    } catch (Exception e) {
+                        echo "Terraform Apply failed: ${e.message}"
+                        currentBuild.result = 'FAILURE'
+                        throw e  // Re-throw the exception after logging it
+                    }
                 }
             }
         }
 
         stage('Provision RDS') {
             steps {
-                withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'idnum01']]) {
-                    sh '''
-                        export AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID
-                        export AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY
-                        terraform apply -auto-approve rdsplan
-                    '''
+                input message: 'Do you approve applying RDS changes?', ok: 'Yes'
+                script {
+                    try {
+                        sh """
+                            terraform apply -auto-approve rdsplan \
+                            -var="db_password=${DB_PASSWORD}" \
+                            -var="s3_bucket_name=${S3_BUCKET_NAME}" \
+                            -var="aws_ami_id=${AWS_AMI_ID}"
+                        """
+                    } catch (Exception e) {
+                        echo "Provision RDS failed: ${e.message}"
+                        currentBuild.result = 'FAILURE'
+                        throw e  // Re-throw the exception after logging it
+                    }
                 }
             }
+        }
+    }
+
+    post {
+        always {
+            // Clean workspace to remove any temporary files
+            cleanWs()
         }
     }
 }
