@@ -39,11 +39,11 @@ variable "db_password" {
   sensitive   = true
 
   validation {
-    condition     = length(var.db_password) >= 8 && length(var.db_password) <= 41 &&
-                    !(var.db_password =~ "/") &&
-                    !(var.db_password =~ "@") &&
-                    !(var.db_password =~ "\"") &&
-                    !(var.db_password =~ " ")
+    condition = length(var.db_password) >= 8 && length(var.db_password) <= 41 &&
+                !contains(var.db_password, "/") &&
+                !contains(var.db_password, "@") &&
+                !contains(var.db_password, "\"") &&
+                !contains(var.db_password, " ")
     error_message = "Password must be between 8 and 41 characters and contain only printable ASCII characters excluding /, @, \" or spaces."
   }
 }
