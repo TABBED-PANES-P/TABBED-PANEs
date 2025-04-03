@@ -85,12 +85,14 @@ pipeline {
                 input message: 'Do you approve applying Terraform changes?', ok: 'Yes'
                 script {
                     // Apply the plan if the input is approved
-                    sh """
-                        terraform apply -auto-approve tfplan \
-                        -var="db_password=${DB_PASSWORD}" \
-                        -var="s3_bucket_name=${S3_BUCKET_NAME}" \
-                        -var="aws_ami_id=${AWS_AMI_ID}"
-                    """
+                    sh '''
+terraform apply -auto-approve tfplan \
+  -var="db_password=${DB_PASSWORD}" \
+  -var="instance_type=${INSTANCE_TYPE}" \
+  -var="db_username=${DB_USERNAME}" \
+  -var="s3_bucket_name=${S3_BUCKET_NAME}" \
+  -var="aws_ami_id=${AWS_AMI_ID}"
+'''
                 }
             }
         }
