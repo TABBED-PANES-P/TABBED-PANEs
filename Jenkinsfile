@@ -14,8 +14,6 @@ pipeline {
         DB_PASSWORD = credentials('db_password')  // Jenkins Credentials for Database Password
         S3_BUCKET_NAME = 'your-s3-bucket-name'  // Set your S3 bucket name or make it dynamic
         AWS_AMI_ID = 'ami-12345678'  // Update with the correct AMI ID
-        INSTANCE_TYPE = 't2.micro'  // Define an instance type for your EC2 or RDS
-        DB_USERNAME = 'admin'  // Set a default username for DB
     }
 
     stages {
@@ -60,50 +58,44 @@ pipeline {
         stage('Terraform Init') {
             steps {
                 script {
-                    // Initialize Terraform
-                    sh 'terraform init'
+                    // AWS Credentials are automatically available as environment variables
+                    sh '''
+                        terraform init
+                    '''
                 }
             }
         }
 
         stage('Terraform Plan') {
-  steps {
-    script {
-      // Generate a compliant password if not provided
-      def DB_PASSWORD_COMPLIANT = env.DB_PASSWORD ?: 
-        sh(script: 'openssl rand -base64 20 | tr -dc \'a-zA-Z0-9\' | head -c 20', returnStdout: true).trim()
-      
-      writeFile file: 'terraform.tfvars', text: """
-      environment = "${ENVIRONMENT}"
-      aws_region = "${AWS_REGION}"
-      db_password = "${DB_PASSWORD_COMPLIANT}"
-      db_username = "${DB_USERNAME}"
-      instance_class = "${INSTANCE_CLASS}"
-      allocated_storage = 20
-      skip_final_snapshot = true
-      publicly_accessible = false
-      """
-      
-      sh 'terraform plan -out=tfplan -var-file=terraform.tfvars -compact-warnings'
-    }
-  }
-}
+            steps {
+                script {
+                    // Run Terraform Plan with the provided terraform.tfvars file
+                    sh """
+                        terraform plan -out=tfplan \
+                        -var="db_password=${DB_PASSWORD}" \
+                        -var="s3_bucket_name=${S3_BUCKET_NAME}" \
+                        -var="aws_ami_id=${AWS_AMI_ID}"
+                    """
+                }
+            }
+        }
 
-stage('Terraform Apply') {
-  steps {
-    input message: 'Approve Terraform changes?', ok: 'Yes'
-    script {
-      sh '''
-      # Cleanup any existing state conflicts
-      terraform state rm aws_db_subnet_group.default 2>/dev/null || true
-      terraform state rm aws_security_group.mysql_sg 2>/dev/null || true
-      
-      # Apply changes
-      terraform apply -auto-approve -compact-warnings tfplan
-      '''
-    }
-  }
-}
+        stage('Terraform Apply') {
+            steps {
+                input message: 'Do you approve applying Terraform changes?', ok: 'Yes'
+                script {
+                    // Apply the plan if the input is approved
+                    sh '''
+terraform apply -auto-approve tfplan \
+  -var="db_password=${DB_PASSWORD}" \
+  -var="instance_type=${INSTANCE_TYPE}" \
+  -var="db_username=${DB_USERNAME}" \
+  -var="s3_bucket_name=${S3_BUCKET_NAME}" \
+  -var="aws_ami_id=${AWS_AMI_ID}"
+'''
+                }
+            }
+        }
 
         stage('Provision RDS') {
             steps {
@@ -111,7 +103,10 @@ stage('Terraform Apply') {
                 script {
                     // Apply specific Terraform plan for RDS provisioning
                     sh """
-                    terraform apply -auto-approve rdsplan -var-file=terraform.tfvars
+                        terraform apply -auto-approve rdsplan \
+                        -var="db_password=${DB_PASSWORD}" \
+                        -var="s3_bucket_name=${S3_BUCKET_NAME}" \
+                        -var="aws_ami_id=${AWS_AMI_ID}"
                     """
                 }
             }
