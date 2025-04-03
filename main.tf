@@ -1,16 +1,41 @@
+# Configure AWS Provider
 provider "aws" {
-  region = "us-west-2"  # Adjust as needed
+  region = "us-east-1"  # Change to your region
 }
 
-# Security Group allowing MySQL traffic
-resource "aws_security_group" "default" {
-  name_prefix = "db_sg_"
+# Get the default VPC (or specify a custom VPC)
+data "aws_vpc" "default" {
+  default = true  # Set to `false` if using a custom VPC
+}
+
+# Fetch all available subnets in the VPC
+data "aws_subnets" "available" {
+  filter {
+    name   = "vpc-id"
+    values = [data.aws_vpc.default.id]
+  }
+}
+
+# Create an RDS subnet group using the first 2 subnets (must be in different AZs)
+resource "aws_db_subnet_group" "default" {
+  name       = "my-db-subnet-group"
+  subnet_ids = slice(data.aws_subnets.available.ids, 0, 2)  # Takes first 2 subnets
+  tags = {
+    Name = "Dynamic DB Subnet Group"
+  }
+}
+
+# Example: RDS Security Group (optional but recommended)
+resource "aws_security_group" "rds_sg" {
+  name        = "rds-security-group"
+  description = "Allow inbound PostgreSQL/Aurora traffic"
+  vpc_id      = data.aws_vpc.default.id
 
   ingress {
-    from_port   = 3306
-    to_port     = 3306
+    from_port   = 5432
+    to_port     = 5432
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]  # Open to the public for demo (change for production)
+    cidr_blocks = ["0.0.0.0/0"]  # Restrict this in production!
   }
 
   egress {
@@ -19,41 +44,19 @@ resource "aws_security_group" "default" {
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
-
-  tags = {
-    Name = "db-sg"
-  }
 }
 
-# Define DB Subnet Group
-resource "aws_db_subnet_group" "default" {
-  name       = "my-db-subnet-group"
-  subnet_ids = ["subnet-xxxxxx", "subnet-yyyyyy"]  # Replace with actual subnet IDs
-
-  tags = {
-    Name = "my-db-subnet-group"
-  }
-}
-
-# Create the RDS MySQL instance
-resource "aws_db_instance" "mysql_instance_1" {
-  allocated_storage       = 20
-  storage_type            = "gp2"
-  engine                  = "mysql"
-  engine_version          = "8.0"
-  instance_class          = var.instance_type
-  db_name                 = "mydatabase"
-  username                = var.db_username
-  password                = var.db_password
-  skip_final_snapshot     = true
-  multi_az                = false
-  publicly_accessible     = false
-  backup_retention_period = 7
-
-  vpc_security_group_ids  = ["${aws_security_group.default.id}"]
-  db_subnet_group_name    = "${aws_db_subnet_group.default.name}"
-
-  tags = {
-    Name = "MySQLInstance"
-  }
+# Example: Create a PostgreSQL RDS instance (optional)
+resource "aws_db_instance" "example" {
+  identifier             = "my-postgres-db"
+  engine                 = "postgres"
+  engine_version         = "14.4"
+  instance_class         = "db.t3.micro"
+  allocated_storage      = 20
+  db_name                = "mydatabase"
+  username               = "admin"
+  password               = "changeme123"  # Use AWS Secrets Manager in production!
+  db_subnet_group_name   = aws_db_subnet_group.default.name
+  vpc_security_group_ids = [aws_security_group.rds_sg.id]
+  skip_final_snapshot    = true  # Set to `false` in production!
 }
