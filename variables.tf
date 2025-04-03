@@ -40,15 +40,14 @@ variable "db_password" {
 
   validation {
     condition = length(var.db_password) >= 8 && length(var.db_password) <= 41 &&
-                !contains(var.db_password, "/") &&
-                !contains(var.db_password, "@") &&
-                !contains(var.db_password, "\"") &&
-                !contains(var.db_password, " ")
+                !(var.db_password =~ "/") &&
+                !(var.db_password =~ "@") &&
+                !(var.db_password =~ "\"") &&
+                !(var.db_password =~ " ")
 
     error_message = "Password must be between 8 and 41 characters and contain only printable ASCII characters excluding /, @, \" or spaces."
   }
 }
-
 
 variable "allowed_cidr" {
   description = "Allowed CIDR block for MySQL access"
