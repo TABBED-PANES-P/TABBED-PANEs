@@ -63,17 +63,19 @@ pipeline {
             }
         }
 
-        stage('Terraform Plan') {
-            steps {
-                withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'idnum01']]) {
-                    sh '''
-                        export AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID
-                        export AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY
-                        terraform plan -out=tfplan -var-file=terraform.tfvars
-                    '''
-                }
-            }
+       // In your Jenkinsfile, pass sensitive data securely:
+stage('Terraform Plan') {
+    steps {
+        script {
+            writeFile file: 'terraform.tfvars', text: """
+            aws_region = "${AWS_REGION}"
+            environment = "${ENVIRONMENT}"
+            db_password = "${DB_PASSWORD}"  # From Jenkins credentials
+            """
+            sh 'terraform plan -out=tfplan -var-file=terraform.tfvars'
         }
+    }
+}
 
         stage('Terraform Apply') {
             steps {
