@@ -69,14 +69,18 @@ pipeline {
         stage('Terraform Plan') {
             steps {
                 script {
-                    // Run Terraform Plan with the provided variables
+                    // Create a temporary terraform.tfvars file with the variables
+                    writeFile file: 'terraform.tfvars', text: """
+                    db_password = "${DB_PASSWORD}"
+                    instance_type = "${INSTANCE_TYPE}"
+                    db_username = "${DB_USERNAME}"
+                    s3_bucket_name = "${S3_BUCKET_NAME}"
+                    aws_ami_id = "${AWS_AMI_ID}"
+                    """
+
+                    // Run Terraform Plan
                     sh """
-                    terraform plan -out=tfplan \
-                    -var="db_password=${DB_PASSWORD}" \
-                    -var="instance_type=${INSTANCE_TYPE}" \
-                    -var="db_username=${DB_USERNAME}" \
-                    -var="s3_bucket_name=${S3_BUCKET_NAME}" \
-                    -var="aws_ami_id=${AWS_AMI_ID}"
+                    terraform plan -out=tfplan -var-file=terraform.tfvars
                     """
                 }
             }
@@ -88,12 +92,7 @@ pipeline {
                 script {
                     // Apply the plan if the input is approved
                     sh """
-                    terraform apply -auto-approve tfplan \
-                    -var="db_password=${DB_PASSWORD}" \
-                    -var="instance_type=${INSTANCE_TYPE}" \
-                    -var="db_username=${DB_USERNAME}" \
-                    -var="s3_bucket_name=${S3_BUCKET_NAME}" \
-                    -var="aws_ami_id=${AWS_AMI_ID}"
+                    terraform apply -auto-approve tfplan
                     """
                 }
             }
@@ -105,12 +104,7 @@ pipeline {
                 script {
                     // Apply specific Terraform plan for RDS provisioning
                     sh """
-                    terraform apply -auto-approve rdsplan \
-                    -var="db_password=${DB_PASSWORD}" \
-                    -var="instance_type=${INSTANCE_TYPE}" \
-                    -var="db_username=${DB_USERNAME}" \
-                    -var="s3_bucket_name=${S3_BUCKET_NAME}" \
-                    -var="aws_ami_id=${AWS_AMI_ID}"
+                    terraform apply -auto-approve rdsplan -var-file=terraform.tfvars
                     """
                 }
             }
@@ -124,5 +118,3 @@ pipeline {
         }
     }
 }
-
-
