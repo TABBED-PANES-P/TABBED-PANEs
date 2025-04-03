@@ -7,40 +7,63 @@ pipeline {
     }
 
     environment {
+        // SonarQube Configuration
         SONAR_HOST_URL = 'http://localhost:9000'
-        SONAR_AUTH_TOKEN = credentials('last')  // SonarQube token as Jenkins credential
-        AWS_ACCESS_KEY_ID = credentials('idnum01')  // Jenkins Credentials for AWS Access Key
-        AWS_SECRET_ACCESS_KEY = credentials('idnum01')  // Jenkins Credentials for AWS Secret Key
-        DB_PASSWORD = credentials('db_password')  // Jenkins Credentials for Database Password
-        S3_BUCKET_NAME = 'your-s3-bucket-name'  // Set your S3 bucket name or make it dynamic
-        AWS_AMI_ID = 'ami-12345678'  // Update with the correct AMI ID
+        SONAR_AUTH_TOKEN = credentials('last')
+        
+        // AWS Configuration
+        AWS_ACCESS_KEY_ID = credentials('idnum01')
+        AWS_SECRET_ACCESS_KEY = credentials('idnum01')
+        AWS_REGION = 'us-east-1'
+        
+        // Database Configuration
+        DB_USERNAME = 'admin'
+        DB_PASSWORD = credentials('db_password')  // Will be validated/replaced
+        
+        // Infrastructure Configuration
+        ENVIRONMENT = 'prod'
+        INSTANCE_CLASS = 'db.t3.micro'
+        S3_BUCKET_NAME = 'your-s3-bucket-name'
+        AWS_AMI_ID = 'ami-12345678'
     }
 
     stages {
+        // Source Control Stage
         stage('Checkout Code') {
             steps {
-                git branch: 'master', url: 'https://github.com/TABBED-PANES-P/TABBED-PANEs.git'
+                git branch: 'master', 
+                url: 'https://github.com/TABBED-PANES-P/TABBED-PANEs.git'
             }
         }
 
-        stage('Build') {
+        // Build and Test Stages
+        stage('Build Application') {
             steps {
                 sh 'mvn clean compile'
             }
         }
 
-        stage('Test') {
+        stage('Run Unit Tests') {
             steps {
                 sh 'mvn test'
             }
         }
 
-        stage('Code Coverage') {
+        stage('Code Coverage Analysis') {
             steps {
                 sh 'mvn verify'
+                publishHTML(target: [
+                    allowMissing: false,
+                    alwaysLinkToLastBuild: true,
+                    keepAll: true,
+                    reportDir: 'target/site/jacoco',
+                    reportFiles: 'index.html',
+                    reportName: 'Jacoco Coverage Report'
+                ])
             }
         }
 
+        // Quality Gate
         stage('SonarQube Analysis') {
             steps {
                 withSonarQubeEnv('SonarQube') {
@@ -55,59 +78,83 @@ pipeline {
             }
         }
 
-        stage('Terraform Init') {
+        // Infrastructure Provisioning
+        stage('Terraform Initialization') {
+            steps {
+                sh 'terraform init'
+            }
+        }
+
+        stage('Terraform Planning') {
             steps {
                 script {
-                    // AWS Credentials are automatically available as environment variables
+                    // Generate AWS-compliant password
+                    def SAFE_PASSWORD = sh(
+                        script: 'openssl rand -base64 20 | tr -dc \'a-zA-Z0-9\' | head -c 20',
+                        returnStdout: true
+                    ).trim()
+                    
+                    // Create variables file
+                    writeFile file: 'terraform.tfvars', text: """
+                    environment = "${ENVIRONMENT}"
+                    aws_region = "${AWS_REGION}"
+                    db_password = "${SAFE_PASSWORD}"
+                    db_username = "${DB_USERNAME}"
+                    instance_class = "${INSTANCE_CLASS}"
+                    allocated_storage = 20
+                    skip_final_snapshot = true
+                    publicly_accessible = false
+                    s3_bucket_name = "${S3_BUCKET_NAME}"
+                    aws_ami_id = "${AWS_AMI_ID}"
+                    """
+                    
+                    // Create infrastructure plan
+                    sh 'terraform plan -out=infraplan -var-file=terraform.tfvars -compact-warnings'
+                    
+                    // Create RDS-specific plan
+                    sh 'terraform plan -target=aws_db_instance.mysql -out=rdsplan -var-file=terraform.tfvars -compact-warnings'
+                }
+            }
+        }
+
+        stage('Infrastructure Provisioning') {
+            steps {
+                input message: 'Approve general infrastructure changes?', ok: 'Yes'
+                script {
                     sh '''
-                        terraform init
+                    # Cleanup any existing state conflicts
+                    terraform state rm aws_db_subnet_group.default 2>/dev/null || true
+                    terraform state rm aws_security_group.mysql_sg 2>/dev/null || true
+                    
+                    # Apply infrastructure changes
+                    terraform apply -auto-approve infraplan
                     '''
                 }
             }
         }
 
-        stage('Terraform Plan') {
+        stage('RDS Database Provisioning') {
             steps {
+                input message: 'Approve RDS database creation?', ok: 'Yes'
                 script {
-                    // Run Terraform Plan with the provided terraform.tfvars file
-                    sh """
-                        terraform plan -out=tfplan \
-                        -var="db_password=${DB_PASSWORD}" \
-                        -var="s3_bucket_name=${S3_BUCKET_NAME}" \
-                        -var="aws_ami_id=${AWS_AMI_ID}"
-                    """
+                    sh 'terraform apply -auto-approve rdsplan'
                 }
             }
         }
 
-        stage('Terraform Apply') {
+        // Validation Stage
+        stage('Verify Deployment') {
             steps {
-                input message: 'Do you approve applying Terraform changes?', ok: 'Yes'
                 script {
-                    // Apply the plan if the input is approved
+                    // Add your verification logic here
                     sh '''
-terraform apply -auto-approve tfplan \
-  -var="db_password=${DB_PASSWORD}" \
-  -var="instance_type=${INSTANCE_TYPE}" \
-  -var="db_username=${DB_USERNAME}" \
-  -var="s3_bucket_name=${S3_BUCKET_NAME}" \
-  -var="aws_ami_id=${AWS_AMI_ID}"
-'''
-                }
-            }
-        }
-
-        stage('Provision RDS') {
-            steps {
-                input message: 'Do you approve applying RDS changes?', ok: 'Yes'
-                script {
-                    // Apply specific Terraform plan for RDS provisioning
-                    sh """
-                        terraform apply -auto-approve rdsplan \
-                        -var="db_password=${DB_PASSWORD}" \
-                        -var="s3_bucket_name=${S3_BUCKET_NAME}" \
-                        -var="aws_ami_id=${AWS_AMI_ID}"
-                    """
+                    echo "Verifying RDS deployment..."
+                    # Example: Check RDS status via AWS CLI
+                    aws rds describe-db-instances \
+                        --db-instance-identifier "mysql-${ENVIRONMENT}" \
+                        --query "DBInstances[0].DBInstanceStatus" \
+                        --output text
+                    '''
                 }
             }
         }
@@ -115,8 +162,30 @@ terraform apply -auto-approve tfplan \
 
     post {
         always {
-            // Clean workspace to remove any temporary files
+            // Clean workspace and send notifications
             cleanWs()
+            
+            // Archive important files
+            archiveArtifacts artifacts: '**/target/*.jar', allowEmptyArchive: true
+            archiveArtifacts artifacts: '**/terraform.log', allowEmptyArchive: true
+        }
+        success {
+            slackSend channel: '#deployments',
+                     color: 'good',
+                     message: "SUCCESS: ${JOB_NAME} - ${BUILD_URL}"
+        }
+        failure {
+            emailext body: """
+            Pipeline failed at stage: ${currentBuild.result} 
+            Build URL: ${BUILD_URL}
+            Error details: ${currentBuild.currentResult}
+            """,
+            subject: 'FAILED: ${JOB_NAME} - Build #${BUILD_NUMBER}',
+            to: 'devops-team@yourcompany.com'
+            
+            slackSend channel: '#alerts',
+                     color: 'danger',
+                     message: "FAILED: ${JOB_NAME} - ${BUILD_URL}"
         }
     }
 }
