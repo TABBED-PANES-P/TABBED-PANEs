@@ -67,36 +67,43 @@ pipeline {
         }
 
         stage('Terraform Plan') {
-            steps {
-                script {
-                    // Create a temporary terraform.tfvars file with the variables
-                    writeFile file: 'terraform.tfvars', text: """
-                    db_password = "${DB_PASSWORD}"
-                    instance_type = "${INSTANCE_TYPE}"
-                    db_username = "${DB_USERNAME}"
-                    s3_bucket_name = "${S3_BUCKET_NAME}"
-                    aws_ami_id = "${AWS_AMI_ID}"
-                    """
+  steps {
+    script {
+      // Generate a compliant password if not provided
+      def DB_PASSWORD_COMPLIANT = env.DB_PASSWORD ?: 
+        sh(script: 'openssl rand -base64 20 | tr -dc \'a-zA-Z0-9\' | head -c 20', returnStdout: true).trim()
+      
+      writeFile file: 'terraform.tfvars', text: """
+      environment = "${ENVIRONMENT}"
+      aws_region = "${AWS_REGION}"
+      db_password = "${DB_PASSWORD_COMPLIANT}"
+      db_username = "${DB_USERNAME}"
+      instance_class = "${INSTANCE_CLASS}"
+      allocated_storage = 20
+      skip_final_snapshot = true
+      publicly_accessible = false
+      """
+      
+      sh 'terraform plan -out=tfplan -var-file=terraform.tfvars -compact-warnings'
+    }
+  }
+}
 
-                    // Run Terraform Plan
-                    sh """
-                    terraform plan -out=tfplan -var-file=terraform.tfvars
-                    """
-                }
-            }
-        }
-
-        stage('Terraform Apply') {
-            steps {
-                input message: 'Do you approve applying Terraform changes?', ok: 'Yes'
-                script {
-                    // Apply the plan if the input is approved
-                    sh """
-                    terraform apply -auto-approve tfplan
-                    """
-                }
-            }
-        }
+stage('Terraform Apply') {
+  steps {
+    input message: 'Approve Terraform changes?', ok: 'Yes'
+    script {
+      sh '''
+      # Cleanup any existing state conflicts
+      terraform state rm aws_db_subnet_group.default 2>/dev/null || true
+      terraform state rm aws_security_group.mysql_sg 2>/dev/null || true
+      
+      # Apply changes
+      terraform apply -auto-approve -compact-warnings tfplan
+      '''
+    }
+  }
+}
 
         stage('Provision RDS') {
             steps {
