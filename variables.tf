@@ -34,8 +34,13 @@ variable "db_username" {
 }
 
 variable "db_password" {
-  description = "Database password"
+  description = "Database password (8-41 chars, printable ASCII except /, @, \", or space)"
+  type        = string
   sensitive   = true
+  validation {
+    condition     = can(regex("^[^/@\" ]{8,41}$", var.db_password))
+    error_message = "Password must be 8-41 printable ASCII characters excluding /, @, \", or space"
+  }
 }
 
 variable "allowed_cidr" {
@@ -51,4 +56,15 @@ variable "skip_final_snapshot" {
 variable "publicly_accessible" {
   description = "Make RDS publicly accessible"
   default     = false
+}
+
+# Add these to fix the warnings
+variable "s3_bucket_name" {
+  description = "S3 bucket name"
+  default     = ""
+}
+
+variable "aws_ami_id" {
+  description = "AWS AMI ID"
+  default     = ""
 }
