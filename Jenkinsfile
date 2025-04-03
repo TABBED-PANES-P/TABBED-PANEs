@@ -69,13 +69,24 @@ pipeline {
         }
 
         stage('Terraform Apply') {
-            steps {
-                input message: 'Approve infrastructure changes?', ok: 'Yes'
-                script {
-                    sh 'terraform apply -auto-approve tfplan'
-                }
-            }
+    steps {
+        input message: 'Approve infrastructure changes?', ok: 'Yes'
+        script {
+            sh '''
+            # First import any existing resources to state
+            terraform import aws_db_subnet_group.default mysql-db-subnet-group-prod 2>/dev/null || true
+            terraform import aws_security_group.mysql_sg $(aws ec2 describe-security-groups \
+                --filters Name=group-name,Values=mysql-sg-prod \
+                --query "SecurityGroups[0].GroupId" \
+                --output text) 2>/dev/null || true
+            
+            # Then apply changes
+            terraform apply -auto-approve -target=aws_db_subnet_group.default -target=aws_security_group.mysql_sg
+            terraform apply -auto-approve
+            '''
         }
+    }
+}
 
         /* PRESERVE YOUR RDS STAGE */
         stage('Provision RDS') {
