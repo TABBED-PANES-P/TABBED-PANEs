@@ -68,3 +68,9 @@ variable "aws_ami_id" {
   description = "AWS AMI ID"
   default     = ""
 }
+
+variable "unique_suffix" {
+  description = "Unique identifier to prevent conflicts"
+  type        = string
+  default     = "" # Will be set in Jenkinsfile
+}
